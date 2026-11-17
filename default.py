@@ -7317,21 +7317,25 @@ def sync_resume(background=True):
         return
     from resources.lib import library_resume
     addon_id = ADDON.getAddonInfo('id') or 'plugin.video.nlziet'
+    # The service's "Verder kijken" list carries titles but no watch position,
+    # so the positions come from the add-on's own local resume store (which
+    # survives a Kodi library rebuild). The service list, when it does carry a
+    # position, is merged on top for cross-device items.
+    service_positions = {}
     try:
         api = _get_list_api()
-        positions = api.get_resume_positions()
+        service_positions = api.get_resume_positions() or {}
     except Exception as exc:
-        xbmc.log('NLZiet: resume sync could not reach the service ({})'.format(
-            type(exc).__name__), xbmc.LOGWARNING)
-        if not background:
-            xbmcgui.Dialog().notification('NLZiet', 'Kon de dienst niet bereiken',
-                                          xbmcgui.NOTIFICATION_ERROR)
-        return
-    xbmc.log('NLZiet: resume sync got {} watch position(s) from the service'.format(
-        len(positions or {})), xbmc.LOGINFO)
+        xbmc.log('NLZiet: resume sync could not reach the service ({}); '
+                 'using local positions only'.format(type(exc).__name__), xbmc.LOGWARNING)
+    local_positions = resume_store.all_positions(_resume_path())
+    positions = dict(local_positions)
+    positions.update(service_positions)
+    xbmc.log('NLZiet: resume sync positions: {} local + {} service = {} total'.format(
+        len(local_positions), len(service_positions), len(positions)), xbmc.LOGINFO)
     if not positions:
         if not background:
-            xbmcgui.Dialog().notification('NLZiet', 'De dienst geeft geen kijkposities terug',
+            xbmcgui.Dialog().notification('NLZiet', 'Geen kijkposities gevonden (lokaal of dienst)',
                                           xbmcgui.NOTIFICATION_INFO)
         return
 

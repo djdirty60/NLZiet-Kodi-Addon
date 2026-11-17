@@ -70,6 +70,22 @@ def save(path, content_id, position, total, now=None):
     return True
 
 
+def all_positions(path):
+    """``{content_id: (position, total)}`` for every stored resume point on this
+    device. Used to re-seed the Kodi library's "continue watching" from the
+    add-on's own local history (which the service list does not carry)."""
+    out = {}
+    for cid, row in _load(path).items():
+        try:
+            position = float(row['position'])
+            total = float(row.get('total') or 0)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if position >= MIN_POSITION:
+            out[str(cid)] = (position, total)
+    return out
+
+
 def get(path, content_id):
     """(position, total) for ``content_id``, or None."""
     row = _load(path).get(str(content_id))
