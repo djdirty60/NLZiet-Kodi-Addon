@@ -1,6 +1,11 @@
 # Changelog
 
-> **Latest Version:** v2.6.8 (November 17, 2026)
+> **Latest Version:** v2.6.9 (November 17, 2026)
+
+## [2.6.9] - 2026-11-17
+
+### Diagnose
+- De hervatten-sync logt nu een voorbeeld van een "Verder kijken"-item van de dienst, zodat zichtbaar wordt onder welk veld de kijkpositie staat (het endpoint gaf wel items terug, maar er werd geen positie uit herkend).
 
 ## [2.6.8] - 2026-11-17
 

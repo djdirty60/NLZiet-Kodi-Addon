@@ -1936,6 +1936,11 @@ class NLZietAPI:
                                            + ','.join(sorted(str(k) for k in entry.keys())))
                     except Exception:
                         pass
+                    try:
+                        xbmc.log('NLZiet: continuewatching sample entry: '
+                                 + json.dumps(entry)[:1200], xbmc.LOGINFO)
+                    except Exception:
+                        pass
                 progress = library_resume.extract_progress(entry)
                 if progress:
                     positions[str(content_id)] = progress
