@@ -1,6 +1,11 @@
 # Changelog
 
-> **Latest Version:** v2.6.5 (November 17, 2026)
+> **Latest Version:** v2.6.6 (November 17, 2026)
+
+## [2.6.6] - 2026-11-17
+
+### Opgelost (belangrijk)
+- **"Verder kijken" van de bibliotheek werd gewist.** De nieuwe automatische bronregistratie (2.6.4) verwijderde bij elke scan dubbele pad-rijen uit Kodi's database met een `DELETE`; in Kodi haalt dat óók de afleveringen eronder en hun hervat-posities weg, waardoor je "verder kijken" leegliep. De `DELETE` is verwijderd — de registratie zet nu alleen het content-type/scraper goed en voegt een ontbrekende rij toe, zonder iets te verwijderen. De hervat-posities worden bij de volgende synchronisatie weer vanuit de dienst in de bibliotheek teruggezet.
 
 ## [2.6.5] - 2026-11-17
 
