@@ -2064,16 +2064,68 @@ def library_add(kind, item_id, title=None, poster=None, fanart=None):
                 pass
 
 
+def _removed_item_path(lib, kind, item_id):
+    """The on-disk folder of a library item, worked out before it is removed."""
+    try:
+        entry = lib.store.section('series' if kind == 'series' else 'movie').get(str(item_id))
+        folder = (entry or {}).get('folder')
+        if not folder:
+            return ''
+        root = lib.tv_root() if kind == 'series' else lib.movies_root()
+        return lib.fs.join(root, folder)
+    except Exception:
+        return ''
+
+
+def _remove_from_kodi_library(kind, path):
+    """Drop exactly one show/movie from the Kodi library by its folder, instead
+    of a full VideoLibrary.Clean. A full clean walks every source and hangs Kodi
+    when a source path is unreachable (e.g. an empty or stale library source)."""
+    if not path:
+        return
+    def _norm(value):
+        try:
+            return os.path.normcase(os.path.normpath(xbmcvfs.translatePath(str(value or '')))).rstrip('/\\')
+        except Exception:
+            return ''
+    want = _norm(path)
+    if not want:
+        return
+    try:
+        if kind == 'series':
+            shows = _library_rpc('VideoLibrary.GetTVShows',
+                                 {'properties': ['file']}).get('tvshows', [])
+            for show in shows:
+                if _norm(show.get('file')) == want:
+                    _library_rpc('VideoLibrary.RemoveTVShow', {'tvshowid': show['tvshowid']})
+                    return
+        else:
+            movies = _library_rpc('VideoLibrary.GetMovies',
+                                  {'properties': ['file']}).get('movies', [])
+            for movie in movies:
+                f = _norm(movie.get('file'))
+                if f == want or os.path.dirname(f) == want:
+                    _library_rpc('VideoLibrary.RemoveMovie', {'movieid': movie['movieid']})
+                    return
+    except Exception as exc:
+        xbmc.log('NLZiet: targeted library removal failed ({})'.format(type(exc).__name__),
+                 xbmc.LOGWARNING)
+
+
 def library_remove(kind, item_id, title=None):
     kind = _library_kind(kind)
+    lib = _get_library()
+    # Work out the folder before removal so we can drop just this one item from
+    # the Kodi library afterwards (no full clean, which can hang Kodi).
+    path = _removed_item_path(lib, kind, item_id)
     try:
-        removed = _get_library().remove(kind, item_id)
+        removed = lib.remove(kind, item_id)
     except Exception as e:
         xbmc.log(f"NLZiet library remove failed for {kind}={item_id}: {e}", xbmc.LOGERROR)
         removed = False
     if removed:
         xbmcgui.Dialog().notification('NLZiet', get_string('library_removed', title or ''), xbmcgui.NOTIFICATION_INFO)
-        _after_library_change(scan=False, clean=True)
+        _remove_from_kodi_library(kind, path)
         xbmc.executebuiltin('Container.Refresh')
     else:
         xbmcgui.Dialog().notification('NLZiet', get_string('library_not_found'), xbmcgui.NOTIFICATION_INFO)
@@ -2257,7 +2309,15 @@ def register_library_sources():
 
 
 def _fix_library_sources_db():
-    '''Set content type + local scraper on the library paths in Kodi's DB.'''
+    '''Disabled: setting the content type by writing Kodi's video database
+    directly proved unsafe on some setups (it could wipe resume points and make
+    a library clean hang). The library source is written to sources.xml instead,
+    and the user sets the content type once in Kodi; after that Kodi scans on its
+    own. Kept as a no-op for call compatibility.'''
+    return
+
+
+def _fix_library_sources_db_disabled():
     import glob
     import os
     import sqlite3

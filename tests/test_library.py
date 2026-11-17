@@ -217,7 +217,9 @@ def test_toggle_adds_then_removes_movie(wired):
 
     default.library_toggle('movie', 'm1', 'Film')
     assert not lib.is_in_library('movie', 'm1')
-    assert jobs[-1] == (False, True)
+    # Removing an item no longer triggers a full VideoLibrary.Clean (that walks
+    # every source and could hang Kodi); it drops just this item instead.
+    assert jobs == [(True, False)]
 
 
 def test_export_series_library_route_still_works(wired):
