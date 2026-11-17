@@ -1937,8 +1937,19 @@ class NLZietAPI:
                     except Exception:
                         pass
                     try:
-                        xbmc.log('NLZiet: continuewatching sample entry: '
-                                 + json.dumps(entry)[:1200], xbmc.LOGINFO)
+                        def _nums(obj, prefix=''):
+                            out = []
+                            if isinstance(obj, dict):
+                                for k, v in obj.items():
+                                    if isinstance(v, bool):
+                                        continue
+                                    if isinstance(v, (int, float)):
+                                        out.append('{}{}={}'.format(prefix, k, v))
+                                    elif isinstance(v, dict):
+                                        out += _nums(v, prefix + k + '.')
+                            return out
+                        xbmc.log('NLZiet: continuewatching number fields: '
+                                 + '; '.join(_nums(entry)), xbmc.LOGINFO)
                     except Exception:
                         pass
                 progress = library_resume.extract_progress(entry)
