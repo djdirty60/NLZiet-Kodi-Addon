@@ -1,6 +1,23 @@
 # Changelog
 
-> **Latest Version:** v2.6.3 (November 16, 2026)
+> **Latest Version:** v2.6.4 (November 17, 2026)
+
+## [2.6.4] - 2026-11-17
+
+### Beveiliging
+- **Path traversal in de bibliotheek gedicht.** `Library.remove` en de legacy-migratie valideren het map-pad nu (`_is_safe_folder`) en controleren dat het binnen de bibliotheek-root blijft (`_path_inside_root` via `realpath`/`commonpath`); symlinks worden niet meer gevolgd bij verwijderen.
+- **Command injection voorkomen.** ID's/URL's in `RunPlugin(...)`-aanroepen (service/default) worden nu ge-escaped met `urllib.parse.quote`.
+- **Ouderlijk toezicht-bypass gedicht** (`is_unlocked` accepteerde `inf` → nu `math.isfinite`), **metadata-URL-injectie** afgevangen (`tmdb_id`/`tvmaze_id` alleen cijfers), en **gesigneerde afbeeldings-URL's** blijven heel (alleen bekende crop/width-params gestript, auth-tokens blijven).
+
+### Robuustheid
+- Vele guards toegevoegd tegen crashes op rommelige data (ongevalideerde `int()` in de router, corrupte caches in `tvmaze`/`logo_cache`, verse addon-instellingen in de service, LIKE-wildcards in resume-queries ge-escaped, e.d.).
+- **Kodi 20+ compatibiliteit:** overal `xbmcvfs.translatePath` i.p.v. het verwijderde `xbmc.translatePath`.
+- Vendored dependencies bijgewerkt (urllib3 1.26.19, charset-normalizer 2.1.1, certifi 2026.10.23).
+
+### Toegevoegd
+- **Bibliotheek automatisch in Kodi registreren.** De add-on zet de bibliotheekmappen nu zelf in `sources.xml` + content-type/scraper in Kodi's database en scant ze, zodat series/films zonder handmatige stappen in "Series"/"Speelfilms" verschijnen. Automatische bibliotheek-sync staat standaard aan.
+
+> Deze verbeteringen komen uit de code-review van Nigel1992 bij het overnemen van PR #48 in de originele add-on, en zijn hier teruggenomen.
 
 ## [2.6.3] - 2026-11-16
 

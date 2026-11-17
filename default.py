@@ -212,6 +212,7 @@ TRANSLATIONS = {
     'max_devices_label': {'nl': 'Max apparaten', 'en': 'Max devices'},
     'expires_label': {'nl': 'Verloopt', 'en': 'Expires'},
     'add_to_library': {'nl': 'Toevoegen aan bibliotheek', 'en': 'Add to library'},
+    'register_sources': {'nl': 'Kodi-bronnen voor de bibliotheek toevoegen (herstart Kodi)', 'en': 'Add Kodi sources for the library (restart Kodi)'},
     'library_exported': {'nl': '{} afleveringen geexporteerd naar bibliotheek', 'en': '{} episodes exported to library'},
     'library_export_failed': {'nl': 'Bibliotheek export mislukt', 'en': 'Library export failed'},
     'remove_from_library': {'nl': 'Verwijderen uit bibliotheek', 'en': 'Remove from library'},
@@ -471,6 +472,7 @@ STRING_IDS = {
     'max_devices_label': 33064,
     'expires_label': 33065,
     'add_to_library': 33066,
+    'register_sources': 33370,
     'library_exported': 33067,
     'library_export_failed': 33068,
     'remove_from_library': 33187,
@@ -815,8 +817,9 @@ def _clear_resume_bookmark(content_id):
         import os
         import sqlite3
 
-        db_dir = xbmc.translatePath('special://userdata/Database/')
-        pattern = 'plugin://plugin.video.nlziet/?mode=play&id={0}'.format(content_id)
+        db_dir = xbmcvfs.translatePath('special://userdata/Database/')
+        escaped_id = str(content_id).replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        pattern = 'plugin://plugin.video.nlziet/?mode=play&id={0}'.format(escaped_id)
         for db_path in glob.glob(os.path.join(db_dir, 'MyVideos*.db')):
             try:
                 conn = sqlite3.connect(db_path, timeout=1)
@@ -824,7 +827,7 @@ def _clear_resume_bookmark(content_id):
                     cur = conn.cursor()
                     cur.execute(
                         "DELETE FROM bookmark WHERE idFile IN "
-                        "(SELECT idFile FROM files WHERE strFilename LIKE ?)",
+                        "(SELECT idFile FROM files WHERE strFilename LIKE ? ESCAPE '\\')",
                         (pattern + '%',),
                     )
                     conn.commit()
@@ -1559,7 +1562,7 @@ def main_menu():
     _check_and_handle_token_expiry()
     
     try:
-        addon_path = xbmc.translatePath(ADDON.getAddonInfo('path')) or ''
+        addon_path = xbmcvfs.translatePath(ADDON.getAddonInfo('path')) or ''
     except Exception:
         try:
             addon_path = ADDON.getAddonInfo('path') or ''
@@ -2176,6 +2179,136 @@ def sync_lists_to_library(lib, api=None, progress=None):
     return added, removed, failed
 
 
+def _scan_library_paths(lib):
+    """Ask Kodi to scan the library folders directly (works even when they are
+    not registered as a video source yet)."""
+    for path in (getattr(lib, 'tv_root', lambda: '')(), getattr(lib, 'movies_root', lambda: '')()):
+        if path:
+            try:
+                xbmc.executebuiltin('UpdateLibrary(video, "{}")'.format(path.replace('"', '')))
+            except Exception:
+                pass
+
+
+def fix_library_sources():
+    """Ensure sources.xml, fix content type/scraper in DB, and scan."""
+    try:
+        ensure_sources_xml()
+    except Exception:
+        pass
+    _fix_library_sources_db()
+    try:
+        _scan_library_paths(_get_library())
+    except Exception:
+        pass
+
+
+def ensure_sources_xml():
+    """Write the library folders into sources.xml (idempotent, no UI)."""
+    import os
+    import xml.etree.ElementTree as ET
+    lib = _get_library()
+    paths = [p for p in (lib.tv_root(), lib.movies_root()) if p]
+    names = ['NLZiet Series', 'NLZiet Movies']
+    src_path = xbmcvfs.translatePath('special://userdata/sources.xml')
+    added = 0
+    try:
+        if os.path.exists(src_path):
+            tree = ET.parse(src_path)
+            root = tree.getroot()
+        else:
+            root = ET.Element('sources')
+            tree = ET.ElementTree(root)
+        video = root.find('video')
+        if video is None:
+            video = ET.SubElement(root, 'video')
+            ET.SubElement(video, 'default', {'pathversion': '1'})
+        existing = set()
+        for source in video.findall('source'):
+            node = source.find('path')
+            if node is not None and node.text:
+                existing.add(node.text.rstrip('/'))
+        for name, path in zip(names, paths):
+            norm = path.rstrip('/')
+            if norm in existing:
+                continue
+            source = ET.SubElement(video, 'source')
+            ET.SubElement(source, 'name').text = name
+            ET.SubElement(source, 'path', {'pathversion': '1'}).text = path.rstrip('/') + '/'
+            ET.SubElement(source, 'allowsharing').text = 'true'
+            added += 1
+        if added:
+            tree.write(src_path, encoding='utf-8', xml_declaration=True)
+    except Exception as exc:
+        xbmc.log('NLZiet ensure sources failed: {}'.format(exc), xbmc.LOGERROR)
+    return added
+
+
+def register_library_sources():
+    """Add the library folders as Kodi video sources (idempotent)."""
+    _fix_library_sources_db()
+    added = ensure_sources_xml()
+    _scan_library_paths(_get_library())
+    if added:
+        xbmcgui.Dialog().notification('NLZiet', get_string('register_sources') + ' (' + str(added) + ')',
+                                      xbmcgui.NOTIFICATION_INFO)
+    else:
+        xbmcgui.Dialog().notification('NLZiet', 'Bronnen bestaan al', xbmcgui.NOTIFICATION_INFO)
+
+
+def _fix_library_sources_db():
+    '''Set content type + local scraper on the library paths in Kodi's DB.'''
+    import glob
+    import os
+    import sqlite3
+    lib = _get_library()
+    # Both the translated (absolute) and untranslated (special://) forms may
+    # exist in the DB, so handle both.
+    tv_special = 'special://profile/addon_data/plugin.video.nlziet/library/TV Shows'
+    mv_special = 'special://profile/addon_data/plugin.video.nlziet/library/Movies'
+    pairs = [
+        (lib.tv_root(), tv_special, 'tvshows'),
+        (lib.movies_root(), mv_special, 'movies'),
+    ]
+    db_dir = xbmcvfs.translatePath('special://userdata/Database/')
+    dbs = sorted(glob.glob(os.path.join(db_dir, 'MyVideos*.db')))
+    if not dbs:
+        return
+    db_path = dbs[-1]
+    try:
+        conn = sqlite3.connect(db_path, timeout=5)
+        cur = conn.cursor()
+        # Remove duplicate absolute-path rows (Kodi uses special:// paths).
+        cur.execute("DELETE FROM path WHERE strPath LIKE '/%addon_data/plugin.video.nlziet/library/%'")
+        for abs_path, special_path, content in pairs:
+            for base in (abs_path, special_path):
+                if not base:
+                    continue
+                norm = base.rstrip('/') + '/'
+                cur.execute("UPDATE path SET strContent=?, strScraper=?, scanRecursive=1, "
+                            "useFolderNames=0, noUpdate=0, exclude=0, strSettings=? "
+                            "WHERE (strPath=? OR strPath=?) AND (strContent IS NULL OR strContent='' OR strContent=? )",
+                            (content, 'metadata.local', '', norm, base, ''))
+                # Also update rows that have NULL/empty regardless, force content type.
+                cur.execute("UPDATE path SET strContent=?, strScraper=?, scanRecursive=1, "
+                            "useFolderNames=0, noUpdate=0, exclude=0, strSettings=? "
+                            "WHERE strPath=? OR strPath=?",
+                            (content, 'metadata.local', '', norm, base))
+            # Insert if missing (using special:// form, which Kodi prefers).
+            cur.execute("SELECT 1 FROM path WHERE strPath=? OR strPath=?",
+                        (special_path.rstrip('/') + '/', abs_path.rstrip('/') + '/'))
+            if not cur.fetchone():
+                cur.execute("INSERT INTO path (strPath, strContent, strScraper, scanRecursive, "
+                            "useFolderNames, noUpdate, exclude, strSettings, dateAdded) "
+                            "VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                            (special_path.rstrip('/') + '/', content, 'metadata.local', 1, 0, 0, 0, ''))
+        conn.commit()
+        conn.close()
+        xbmc.log('NLZiet: library sources fixed in DB', xbmc.LOGINFO)
+    except Exception as exc:
+        xbmc.log('NLZiet: fix library sources DB failed: {}'.format(exc), xbmc.LOGERROR)
+
+
 def library_from_lists(background=False):
     """Menu/settings action: put My Series and Watch Later in the Kodi library."""
     if background and xbmc.Player().isPlaying():
@@ -2185,18 +2318,20 @@ def library_from_lists(background=False):
     if not background and hasattr(xbmcgui, 'DialogProgressBG'):
         dialog = xbmcgui.DialogProgressBG()
         dialog.create('NLZiet', get_string('library_lists_busy'))
-
+ 
     def report(index, total, title):
         if dialog is not None and total:
             dialog.update(int(index * 100 / total), 'NLZiet', title)
-
+ 
     try:
         added, removed, failed = sync_lists_to_library(lib, progress=report)
     finally:
         if dialog is not None:
             dialog.close()
+    _fix_library_sources_db()
     if added or removed:
         library_mod.run_library_jobs(scan=True, clean=bool(removed) and _setting_on('library_clean_after', True))
+    _scan_library_paths(lib)
     if not background or (added or removed):
         xbmcgui.Dialog().notification('NLZiet', get_string('library_lists_done', added, removed, failed),
                                       xbmcgui.NOTIFICATION_INFO)
@@ -2297,7 +2432,7 @@ def library_update(background=False):
     if background and xbmc.Player().isPlaying():
         return
     lib = _get_library()
-    if _setting_on('library_lists_sync', False):
+    if _setting_on('library_lists_sync', True):
         try:
             sync_lists_to_library(lib)
         except Exception as e:
@@ -2327,9 +2462,11 @@ def library_update(background=False):
             except Exception:
                 pass
     changed = bool(totals.get('added') or totals.get('removed'))
+    _fix_library_sources_db()
     if changed or not background:
         # A manual update always scans, so titles a busy Kodi skipped get in too.
         library_mod.run_library_jobs(scan=True, clean=bool(totals.get('removed')) and _setting_on('library_clean_after', True))
+    _scan_library_paths(lib)
     repair_library_art()
     if not background or (changed and _setting_on('background_sync_notify', True)):
         xbmcgui.Dialog().notification(
@@ -5602,7 +5739,7 @@ def _filtered_search_results(results, q, group, period=None, genre=None):
 
 def _pick_menu_png_any(name):
     try:
-        addon_path = xbmc.translatePath(ADDON.getAddonInfo('path')) or ''
+        addon_path = xbmcvfs.translatePath(ADDON.getAddonInfo('path')) or ''
     except Exception:
         addon_path = ''
     return kodi_ui.pick_menu_png(addon_path, name)
@@ -6895,8 +7032,9 @@ def _announce_next_episode(api, content_id, metadata, stream_info, markers, mode
                 return corner.ask(get_string('next_episode_label'), seconds=15)
 
             def _play():
+                from urllib.parse import quote
                 xbmc.executebuiltin('RunPlugin(plugin://{}/?mode=play_next&id={}&background=1)'.format(
-                    ADDON.getAddonInfo('id'), content_id))
+                    ADDON.getAddonInfo('id'), quote(str(content_id), safe='')))
 
             playback_extras.start_next_prompt(_play, _ask, credits_start=credits_start)
             xbmc.log('NLZiet next episode: own prompt armed for {}'.format(query.get('id')), xbmc.LOGINFO)
@@ -7247,7 +7385,7 @@ def play_item(content_id, fmt=None, **kwargs):
     except Exception:
         # Fallback to creating a new instance if cache fails
         api = NLZietAPI(username=username, password=password)
-    xbmc.log(f"NLZiet play_item called: id={content_id} fmt={fmt}", xbmc.LOGINFO)
+    xbmc.log(f"NLZiet play_item called: id={content_id} fmt={fmt}", xbmc.LOGDEBUG)
     # Stored list items (Watch Later / My List) are played by id only, so look
     # their title, description and artwork up from the local lists so the OSD
     # and Trakt metadata are complete.
@@ -7362,7 +7500,7 @@ def play_item(content_id, fmt=None, **kwargs):
     # plays from the start instead of jumping to realtime. Only seek for live
     # (dynamic) streams; VOD replays already start at 0.
     is_live_replay = fmt == 'epg' and 'start=' in str(manifest or '')
-    xbmc.log('NLZiet replay: is_live_replay={0}'.format(is_live_replay), xbmc.LOGINFO)
+    xbmc.log('NLZiet replay: is_live_replay={0}'.format(is_live_replay), xbmc.LOGDEBUG)
     if is_live_replay:
         try:
             import threading
@@ -7390,7 +7528,7 @@ def play_item(content_id, fmt=None, **kwargs):
                         'params': {'playerid': 1, 'value': {'percentage': 0}},
                         'id': 1,
                     }))
-                    xbmc.log('NLZiet replay seek to 0:00:00 done', xbmc.LOGINFO)
+                    xbmc.log('NLZiet replay seek to 0:00:00 done', xbmc.LOGDEBUG)
                 except Exception as exc:
                     xbmc.log(f'NLZiet replay seek failed: {exc}', xbmc.LOGWARNING)
             import time
@@ -7398,8 +7536,8 @@ def play_item(content_id, fmt=None, **kwargs):
         except Exception:
             pass
     subs_in_info = info.get('subtitles')
-    xbmc.log(f"NLZiet play_item: id={content_id} manifest={manifest} is_drm={is_drm} fmt={fmt} has_subs={bool(subs_in_info)}", xbmc.LOGINFO)
-    xbmc.log(f"NLZiet info subtitles value: {repr(subs_in_info)} (type: {type(subs_in_info).__name__})", xbmc.LOGINFO)
+    xbmc.log(f"NLZiet play_item: id={content_id} manifest={manifest} is_drm={is_drm} fmt={fmt} has_subs={bool(subs_in_info)}", xbmc.LOGDEBUG)
+    xbmc.log(f"NLZiet info subtitles value: {repr(subs_in_info)} (type: {type(subs_in_info).__name__})", xbmc.LOGDEBUG)
     if not manifest:
         xbmcgui.Dialog().notification('NLZiet', get_string('no_manifest'), xbmcgui.NOTIFICATION_ERROR)
         return
@@ -7407,7 +7545,7 @@ def play_item(content_id, fmt=None, **kwargs):
     # Check subtitle setting once for all processing
     try:
         enable_subs = ADDON.getSetting('subtitles_default')
-        xbmc.log(f"NLZiet DEBUG subtitles_default raw value: {repr(enable_subs)} (type: {type(enable_subs).__name__})", xbmc.LOGINFO)
+        xbmc.log(f"NLZiet DEBUG subtitles_default raw value: {repr(enable_subs)} (type: {type(enable_subs).__name__})", xbmc.LOGDEBUG)
     except Exception as e:
         enable_subs = None
         xbmc.log(f"NLZiet ERROR reading subtitles_default: {e}", xbmc.LOGINFO)
@@ -7615,7 +7753,7 @@ def play_item(content_id, fmt=None, **kwargs):
         # Check subtitle setting once
         try:
             enable_subs = ADDON.getSetting('subtitles_default')
-            xbmc.log(f"NLZiet DEBUG non-DRM subtitles_default raw: {repr(enable_subs)} (type: {type(enable_subs).__name__})", xbmc.LOGINFO)
+            xbmc.log(f"NLZiet DEBUG non-DRM subtitles_default raw: {repr(enable_subs)} (type: {type(enable_subs).__name__})", xbmc.LOGDEBUG)
         except Exception as e:
             enable_subs = None
             xbmc.log(f"NLZiet ERROR reading subtitles_default: {e}", xbmc.LOGINFO)
@@ -8151,6 +8289,8 @@ def get_route_handlers():
         'browse_library': browse_library,
         'check_tmdb_key': check_tmdb_key,
         'repair_library_art': repair_library_art,
+        'register_library_sources': register_library_sources,
+        'fix_library_sources': fix_library_sources,
         'run_diagnostics': run_diagnostics,
         'widgets_menu': widgets_menu,
         'widget_list': widget_list,

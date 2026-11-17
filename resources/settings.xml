@@ -73,7 +73,7 @@
       <group id="2" label="33260">
         <setting id="library_lists_sync" type="boolean" label="33248" help="33249">
           <level>0</level>
-          <default>false</default>
+          <default>true</default>
           <control type="toggle"/>
         </setting>
         <setting id="library_lists_remove" type="boolean" label="33250" help="33251">
@@ -197,6 +197,13 @@
         <setting id="library_update_now" type="action" label="33194" help="">
           <level>0</level>
           <data>RunPlugin(plugin://$ID?mode=library_update)</data>
+          <control type="button" format="action">
+            <close>false</close>
+          </control>
+        </setting>
+        <setting id="register_library_sources" type="action" label="33370" help="">
+          <level>0</level>
+          <data>RunPlugin(plugin://$ID?mode=register_library_sources)</data>
           <control type="button" format="action">
             <close>false</close>
           </control>
