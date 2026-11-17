@@ -347,6 +347,17 @@ def repair_dateadded_once():
 
 def main():
     xbmc.log('NLZiet service: started', xbmc.LOGINFO)
+    # One-time migration: background-sync notifications were silenced by default
+    # in 2.6.3, but installs that carried over the old default kept them on.
+    # Align existing installs with the new default once; the user can re-enable
+    # the setting afterwards.
+    if not _setting_on('notify_default_migrated_v1', False):
+        try:
+            ADDON.setSetting('background_sync_notify', 'false')
+            ADDON.setSetting('notify_default_migrated_v1', 'true')
+            xbmc.log('NLZiet service: background notifications migrated off', xbmc.LOGINFO)
+        except Exception:
+            pass
     started = time.time()
     last_sync = time.time()
     last_library_trigger = 0

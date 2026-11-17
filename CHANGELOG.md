@@ -1,6 +1,11 @@
 # Changelog
 
-> **Latest Version:** v2.6.4 (November 17, 2026)
+> **Latest Version:** v2.6.5 (November 17, 2026)
+
+## [2.6.5] - 2026-11-17
+
+### Opgelost
+- **"Kijk Later gesynchroniseerd"-meldingen blijven nu echt weg.** Het uitzetten van de melding in 2.6.3 veranderde alleen de standaardwaarde; installaties die de oude waarde (aan) hadden meegenomen, bleven de melding tonen. Er draait nu een eenmalige migratie die de melding bij bestaande installaties op uit zet (weer aan te zetten via *Melding bij achtergrond-synchronisatie*). Daarnaast las één plek de instelling nog met standaard "aan"; dat is gelijkgetrokken naar "uit".
 
 ## [2.6.4] - 2026-11-17
 

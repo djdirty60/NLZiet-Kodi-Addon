@@ -2468,7 +2468,7 @@ def library_update(background=False):
         library_mod.run_library_jobs(scan=True, clean=bool(totals.get('removed')) and _setting_on('library_clean_after', True))
     _scan_library_paths(lib)
     repair_library_art()
-    if not background or (changed and _setting_on('background_sync_notify', True)):
+    if not background or (changed and _setting_on('background_sync_notify', False)):
         xbmcgui.Dialog().notification(
             'NLZiet',
             get_string('library_update_done', totals.get('added', 0), totals.get('removed', 0)),
