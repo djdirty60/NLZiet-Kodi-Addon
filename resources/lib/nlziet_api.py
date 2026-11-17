@@ -1898,17 +1898,29 @@ class NLZietAPI:
         """
         from resources.lib import library_resume
         positions = {}
+        total_entries = 0
         offset = 0
         logged = False
+
+        def _report(result):
+            try:
+                xbmc.log('NLZiet: continuewatching gave {} entry(ies), {} with a '
+                         'usable position'.format(total_entries, len(positions)),
+                         xbmc.LOGINFO)
+            except Exception:
+                pass
+            return result
+
         while True:
             payload = self._watchlist_request(
                 'GET', path='/v9/continuewatching',
                 params={'limit': self._CLOUD_LIST_PAGE_SIZE, 'offset': offset})
             if payload is None:
-                return positions or None
+                return _report(positions or None)
             entries = payload.get('data') if isinstance(payload, dict) else payload
             if not isinstance(entries, list) or not entries:
-                return positions
+                return _report(positions)
+            total_entries += len(entries)
             for entry in entries:
                 if not isinstance(entry, dict):
                     continue
@@ -1928,7 +1940,7 @@ class NLZietAPI:
                 if progress:
                     positions[str(content_id)] = progress
             if len(entries) < self._CLOUD_LIST_PAGE_SIZE:
-                return positions
+                return _report(positions)
             offset += len(entries)
 
     def _normalize_cloud_item(self, entry):

@@ -1,6 +1,11 @@
 # Changelog
 
-> **Latest Version:** v2.6.7 (November 17, 2026)
+> **Latest Version:** v2.6.8 (November 17, 2026)
+
+## [2.6.8] - 2026-11-17
+
+### Diagnose
+- De hervatten-sync logt nu hoeveel items het "Verder kijken"-endpoint (`/v9/continuewatching`) teruggeeft en voor hoeveel daarvan een bruikbare positie wordt gevonden. Zo is te zien of het endpoint leeg is (profiel/inlog) of dat de positie niet uit het antwoord wordt herkend.
 
 ## [2.6.7] - 2026-11-17
 
