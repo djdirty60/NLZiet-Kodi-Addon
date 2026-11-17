@@ -7304,7 +7304,16 @@ def sync_resume(background=True):
     turns up in the skin's "Afleveringen die je kijkt" row here, which reads the
     Kodi library.
     """
-    if not _setting_on('sync_resume_from_service', True) or not _is_logged_in():
+    if not _setting_on('sync_resume_from_service', True):
+        xbmc.log('NLZiet: resume sync is turned off in settings', xbmc.LOGINFO)
+        if not background:
+            xbmcgui.Dialog().notification('NLZiet', 'Hervatten-sync staat uit in instellingen',
+                                          xbmcgui.NOTIFICATION_INFO)
+        return
+    if not _is_logged_in():
+        xbmc.log('NLZiet: resume sync skipped, not logged in', xbmc.LOGINFO)
+        if not background:
+            xbmcgui.Dialog().notification('NLZiet', 'Niet ingelogd', xbmcgui.NOTIFICATION_INFO)
         return
     from resources.lib import library_resume
     addon_id = ADDON.getAddonInfo('id') or 'plugin.video.nlziet'
@@ -7314,8 +7323,16 @@ def sync_resume(background=True):
     except Exception as exc:
         xbmc.log('NLZiet: resume sync could not reach the service ({})'.format(
             type(exc).__name__), xbmc.LOGWARNING)
+        if not background:
+            xbmcgui.Dialog().notification('NLZiet', 'Kon de dienst niet bereiken',
+                                          xbmcgui.NOTIFICATION_ERROR)
         return
+    xbmc.log('NLZiet: resume sync got {} watch position(s) from the service'.format(
+        len(positions or {})), xbmc.LOGINFO)
     if not positions:
+        if not background:
+            xbmcgui.Dialog().notification('NLZiet', 'De dienst geeft geen kijkposities terug',
+                                          xbmcgui.NOTIFICATION_INFO)
         return
 
     def _cid_for(item):
@@ -7365,7 +7382,18 @@ def sync_resume(background=True):
     # No Container.Refresh: SetEpisodeDetails/SetMovieDetails already fire
     # VideoLibrary.OnUpdate, which reloads the library rows on Home on its own.
     # A manual refresh would disturb whatever list the user is browsing.
-    xbmc.log('NLZiet: resume sync updated {} library item(s)'.format(done), xbmc.LOGINFO)
+    xbmc.log('NLZiet: resume sync updated {} library item(s) from {} position(s), '
+             '{} matched call(s)'.format(done, len(positions or {}), len(calls)), xbmc.LOGINFO)
+    if not background:
+        if done:
+            xbmcgui.Dialog().notification('NLZiet', 'Verder kijken bijgewerkt ({})'.format(done),
+                                          xbmcgui.NOTIFICATION_INFO)
+        else:
+            xbmcgui.Dialog().notification(
+                'NLZiet',
+                'Geen afleveringen bijgewerkt (posities: {}, in bibliotheek gevonden: {})'.format(
+                    len(positions or {}), len(calls)),
+                xbmcgui.NOTIFICATION_INFO, 6000)
 
 
 def mark_series_watched_route(series_id):

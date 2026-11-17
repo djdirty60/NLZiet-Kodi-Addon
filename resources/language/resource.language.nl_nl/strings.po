@@ -1595,3 +1595,7 @@ msgstr "Volgende aflevering"
 msgctxt "#33370"
 msgid "Add Kodi sources for the library (restart Kodi)"
 msgstr "Kodi-bronnen voor de bibliotheek toevoegen (herstart Kodi)"
+
+msgctxt "#33371"
+msgid "Sync continue watching now"
+msgstr "Verder kijken nu synchroniseren"

@@ -207,6 +207,13 @@
             <close>false</close>
           </control>
         </setting>
+        <setting id="sync_resume_now" type="action" label="33371" help="">
+          <level>0</level>
+          <data>RunPlugin(plugin://$ID?mode=sync_resume)</data>
+          <control type="button" format="action">
+            <close>false</close>
+          </control>
+        </setting>
         <setting id="register_library_sources" type="action" label="33370" help="">
           <level>0</level>
           <data>RunPlugin(plugin://$ID?mode=register_library_sources)</data>

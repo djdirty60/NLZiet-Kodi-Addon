@@ -1578,3 +1578,7 @@ msgstr ""
 msgctxt "#33370"
 msgid "Add Kodi sources for the library (restart Kodi)"
 msgstr ""
+
+msgctxt "#33371"
+msgid "Sync continue watching now"
+msgstr ""

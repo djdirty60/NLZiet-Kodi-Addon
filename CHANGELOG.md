@@ -1,6 +1,12 @@
 # Changelog
 
-> **Latest Version:** v2.6.6 (November 17, 2026)
+> **Latest Version:** v2.6.7 (November 17, 2026)
+
+## [2.6.7] - 2026-11-17
+
+### Toegevoegd / diagnose
+- **Knop "Verder kijken nu synchroniseren"** in de instellingen (bibliotheek-sectie). Zet de kijkposities van de dienst meteen in de bibliotheek, zonder op de uursync of een herstart te wachten, en toont een melding met het resultaat (bv. "Verder kijken bijgewerkt (12)" of "posities: 0").
+- De hervatten-sync logt nu wat hij doet: aantal posities van de dienst, aantal bijgewerkte afleveringen, en waarom hij eventueel stopt (niet ingelogd, sync uit, geen posities). Zo is te zien waaróm "verder kijken" leeg zou blijven.
 
 ## [2.6.6] - 2026-11-17
 
