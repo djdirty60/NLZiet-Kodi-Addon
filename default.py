@@ -7364,6 +7364,15 @@ def sync_resume(background=True):
     try:
         episodes = _library_rpc('VideoLibrary.GetEpisodes',
                                 {'properties': ['file', 'runtime', 'resume']}).get('episodes', [])
+        if not background:
+            try:
+                xbmc.log('NLZiet: resume match debug - position ids: {}; library has {} '
+                         'episode(s); sample episode file->cid: {}'.format(
+                             list(positions.keys())[:8], len(episodes),
+                             [(ep.get('file'), _cid_for(ep)) for ep in episodes[:5]]),
+                         xbmc.LOGINFO)
+            except Exception:
+                pass
         calls += library_resume.build_calls(
             episodes, positions, 'episodeid',
             'VideoLibrary.SetEpisodeDetails', _cid_for, now_text)
