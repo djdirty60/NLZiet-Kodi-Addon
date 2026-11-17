@@ -365,6 +365,7 @@ def main():
     last_daily = 0
     last_notify = 0
     last_resume_sync = 0
+    last_sources_fix = 0
     legacy_checked = False
     player = PlaybackFollower()
     while not MONITOR.abortRequested():
@@ -384,8 +385,13 @@ def main():
                 xbmc.log('NLZiet service: dateadded repair failed: {}'.format(exc), xbmc.LOGWARNING)
 
         # Make sure the library folders have a content type + local scraper in
-        # Kodi's database, otherwise .strm/.nfo files never become entries.
-        if now - started >= LIBRARY_STARTUP_DELAY and not xbmc.Player().isPlaying():
+        # Kodi's database, otherwise .strm/.nfo files never become entries. This
+        # only needs doing occasionally (the content type is sticky, and a
+        # library update sets it again right before every scan), so run it once
+        # after startup and then at most every 6 hours instead of every minute.
+        if (now - started >= LIBRARY_STARTUP_DELAY and not xbmc.Player().isPlaying()
+                and now - last_sources_fix >= 6 * 3600):
+            last_sources_fix = now
             try:
                 xbmc.executebuiltin('RunPlugin(plugin://{}/?mode=fix_library_sources&background=1)'.format(ADDON_ID))
             except Exception as exc:
